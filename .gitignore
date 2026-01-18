@@ -8,3 +8,5 @@ AntiHub-scripts-main/
 .pnpm-store/v10/
 .kiro/
 AntiHook/.gocache/
+.pids/
+logs/

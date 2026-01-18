@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.repositories.user_repository import UserRepository
 from app.cache import get_redis_client
 
@@ -39,7 +39,17 @@ async def ensure_admin_user(db: AsyncSession) -> bool:
     repo = UserRepository(db)
     existing_user = await repo.get_by_username(admin_username)
     if existing_user:
-        logger.info("管理员账号已存在: %s (ID: %s)", existing_user.username, existing_user.id)
+        if not existing_user.password_hash or not verify_password(admin_password, existing_user.password_hash):
+            await repo.update(
+                existing_user.id,
+                password_hash=hash_password(admin_password),
+                is_active=True,
+                is_silenced=False,
+            )
+            await db.commit()
+            logger.info("管理员账号已存在，已同步密码与状态: %s (ID: %s)", existing_user.username, existing_user.id)
+        else:
+            logger.info("管理员账号已存在: %s (ID: %s)", existing_user.username, existing_user.id)
         return False
 
     try:
@@ -84,4 +94,3 @@ async def ensure_admin_user(db: AsyncSession) -> bool:
     except Exception:
         await db.rollback()
         raise
-

@@ -2,6 +2,7 @@
 认证相关的 API 路由
 提供登录、登出、Token 刷新等端点
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 
 from app.api.deps import (
@@ -32,6 +33,8 @@ from app.core.exceptions import (
     TokenBlacklistedError,
     UserNotFoundError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -100,6 +103,12 @@ async def login(
             detail=e.message
         )
     except Exception as e:
+        logger.error(
+            "登录失败: username=%s, error=%s",
+            request.username,
+            type(e).__name__,
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"登录失败"

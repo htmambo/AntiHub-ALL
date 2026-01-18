@@ -74,8 +74,13 @@ import {
 import { MorphingSquare } from '@/components/ui/morphing-square';
 import { Gemini, Claude, OpenAI, Qwen } from '@lobehub/icons';
 
+let lastBalanceRequestTime = 0;
+const minRequestInterval = 1000;
+
 export default function AccountsPage() {
   const toasterRef = useRef<ToasterRef>(null);
+  const isLoadingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [kiroAccounts, setKiroAccounts] = useState<KiroAccount[]>([]);
   const [kiroBalances, setKiroBalances] = useState<Record<string, number>>({});
@@ -135,7 +140,15 @@ export default function AccountsPage() {
   } | null>(null);
   const [isConfirmLoading, setIsConfirmLoading] = useState(false);
 
-  const loadAccounts = async () => {
+  const loadAccounts = async (skipBalances = false) => {
+    // 防重入保护
+    if (isLoadingRef.current) {
+      console.log('loadAccounts already in progress, skipping');
+      return;
+    }
+    
+    isLoadingRef.current = true;
+    
     try {
       // 加载反重力账号
       const data = await getAccounts();
@@ -152,20 +165,10 @@ export default function AccountsPage() {
         const kiroData = await getKiroAccounts();
         setKiroAccounts(kiroData);
 
-        // 加载每个Kiro账号的余额
-        const balances: Record<string, number> = {};
-        await Promise.all(
-          kiroData.map(async (account) => {
-            try {
-              const balanceData = await getKiroAccountBalance(account.account_id);
-              balances[account.account_id] = balanceData.balance.available || 0;
-            } catch (err) {
-              console.error(`加载账号${account.account_id}余额失败:`, err);
-              balances[account.account_id] = 0;
-            }
-          })
-        );
-        setKiroBalances(balances);
+        // 只在不跳过余额且当前在 Kiro 标签页时加载余额
+        if (!skipBalances && activeTab === 'kiro') {
+          await loadKiroBalances(kiroData);
+        }
       } catch (err) {
         console.log('未加载Kiro账号');
         setKiroAccounts([]);
@@ -193,15 +196,44 @@ export default function AccountsPage() {
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      isLoadingRef.current = false;
     }
   };
 
-  useEffect(() => {
-    loadAccounts();
+  const loadKiroBalances = async (accounts: KiroAccount[]) => {
+    // 使用并发控制避免触发上游 API 速率限制（HTTP 429）
+    const balances: Record<string, number> = {};
+    const maxConcurrentRequests = 1;
+    const delayBetweenBatches = 1000;
+    
+    for (let i = 0; i < accounts.length; i += maxConcurrentRequests) {
+      const batch = accounts.slice(i, i + maxConcurrentRequests);
+      await Promise.all(
+        batch.map(async (account) => {
+          try {
+            const balanceData = await getKiroAccountBalance(account.account_id);
+            balances[account.account_id] = balanceData.balance.available || 0;
+          } catch (err) {
+            console.error(`加载账号${account.account_id}余额失败:`, err);
+            balances[account.account_id] = 0;
+          }
+        })
+      );
+      if (i + maxConcurrentRequests < accounts.length) {
+        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
+    setKiroBalances(balances);
+  };
 
-    // 监听账号添加事件
+  useEffect(() => {
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+    
+    loadAccounts(true);
+
     const handleAccountAdded = () => {
-      loadAccounts();
+      loadAccounts(true);
     };
 
     window.addEventListener('accountAdded', handleAccountAdded);
@@ -211,9 +243,15 @@ export default function AccountsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'kiro' && kiroAccounts.length > 0 && Object.keys(kiroBalances).length === 0) {
+      loadKiroBalances(kiroAccounts);
+    }
+  }, [activeTab]);
+
   const handleRefresh = () => {
     setIsRefreshing(true);
-    loadAccounts();
+    loadAccounts(activeTab !== 'kiro');
   };
 
   const handleAddAccount = () => {
@@ -577,6 +615,13 @@ export default function AccountsPage() {
     setIsKiroDetailDialogOpen(true);
     setIsLoadingDetail(true);
     setDetailBalance(null);
+
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastBalanceRequestTime;
+    if (timeSinceLastRequest < minRequestInterval) {
+      await new Promise(resolve => setTimeout(resolve, minRequestInterval - timeSinceLastRequest));
+    }
+    lastBalanceRequestTime = Date.now();
 
     try {
       const balanceData = await getKiroAccountBalance(account.account_id);
@@ -1165,7 +1210,7 @@ export default function AccountsPage() {
       <AddAccountDrawer
         open={isAddDrawerOpen}
         onOpenChange={setIsAddDrawerOpen}
-        onSuccess={loadAccounts}
+        onSuccess={() => loadAccounts(activeTab !== 'kiro')}
       />
 
       {/* 配额查看 Dialog */}

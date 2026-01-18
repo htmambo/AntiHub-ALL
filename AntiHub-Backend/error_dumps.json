@@ -1,0 +1,62 @@
+[
+  {
+    "timestamp": "2026-01-19T00:48:40.940955",
+    "endpoint": "/v1/messages",
+    "error_type": "upstream_error",
+    "user_request": {
+      "model": "claude-4-5-sonnet",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "max_tokens": 1000,
+      "system": null,
+      "stop_sequences": null,
+      "stream": false,
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "thinking": null,
+      "tools": null,
+      "tool_choice": null,
+      "metadata": null
+    },
+    "error_info": {
+      "error_message": "上游API返回错误: 500",
+      "error_class": "UpstreamAPIError",
+      "upstream_response": null
+    }
+  },
+  {
+    "timestamp": "2026-01-19T00:49:18.267583",
+    "endpoint": "/v1/messages",
+    "error_type": "upstream_error",
+    "user_request": {
+      "model": "claude-3-5-sonnet-20241022",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello!"
+        }
+      ],
+      "max_tokens": 1000,
+      "system": null,
+      "stop_sequences": null,
+      "stream": false,
+      "temperature": null,
+      "top_p": null,
+      "top_k": null,
+      "thinking": null,
+      "tools": null,
+      "tool_choice": null,
+      "metadata": null
+    },
+    "error_info": {
+      "error_message": "上游API返回错误: 500",
+      "error_class": "UpstreamAPIError",
+      "upstream_response": null
+    }
+  }
+]

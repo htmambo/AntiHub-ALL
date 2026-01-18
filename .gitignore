@@ -10,3 +10,5 @@ AntiHub-scripts-main/
 AntiHook/.gocache/
 .pids/
 logs/
+venv/
+*.diff
